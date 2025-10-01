@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactiv Show — MC & Vote Public</title>
+  <style>
+    :root{ --fp-yellow:#f7d708; --fp-blue:#003366; --bg:#fdfdfd; --fg:#222; --muted:#666; --red:#e63946; --ok:#2a9d8f; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--fg)}
+    header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:14px 18px;background:var(--fp-yellow);color:var(--fp-blue);font-weight:700}
+    header .title{display:flex;align-items:center;gap:.6rem}
+    header .badge{background:var(--fp-blue);color:#fff;border-radius:999px;padding:.2rem .6rem;font-size:.8rem}
+    main{max-width:1200px;margin:0 auto;padding:18px}
+    .tabs{display:flex;gap:8px;margin:10px 0 18px;flex-wrap:wrap}
+    .tab{padding:10px 14px;border:2px solid var(--fp-blue);border-radius:12px;background:#fff;color:var(--fp-blue);cursor:pointer;font-weight:600}
+    .tab.active{background:var(--fp-blue);color:#fff}
+    .panel{display:none}
+    .panel.active{display:block}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(260px,1fr));gap:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid #ddd;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+    .list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .list .item{border:2px solid var(--fp-blue);border-radius:12px;padding:10px;display:flex;justify-content:space-between;gap:10px;align-items:center;background:#fff}
+    .item .left{display:flex;gap:10px;align-items:center}
+    .item input{margin-top:0}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .btn{border:none;background:var(--fp-blue);color:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn.secondary{background:#fff;color:var(--fp-blue);border:2px solid var(--fp-blue)}
+    .btn.icon{padding:6px 10px}
+    .btn.danger{background:var(--red);color:#fff}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .counter{font-weight:700;color:var(--fp-blue)}
+    .muted{color:var(--muted)}
+    .success{color:var(--ok);font-weight:700}
+    .warning{color:#c77d00;font-weight:700}
+    .chrono{font-size:1.6rem;color:var(--red);font-weight:800}
+    .themes{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .theme{border:2px solid var(--fp-blue);border-radius:12px;padding:12px;background:#fff;cursor:pointer;transition:.15s}
+    .theme[aria-disabled="true"]{opacity:.6;pointer-events:none}
+    .theme:hover{transform:scale(1.02)}
+    .theme.selected{background:var(--fp-yellow);color:var(--fp-blue);font-weight:800}
+    .qrbox{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--fp-blue);border-radius:16px;min-height:220px;background:#fff;padding:10px;gap:10px}
+    .qrbox small{display:block;color:var(--muted)}
+    .pill{background:#eef6ff;color:#1954b6;padding:.2rem .6rem;border-radius:999px;font-size:.8rem}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f3f3f3;border:1px solid #ddd;border-bottom-width:2px;border-radius:6px;padding:2px 6px}
+
+    /* Résultats */
+    .bars{display:grid;gap:8px;margin-top:8px}
+    .bar{display:flex;align-items:center;gap:8px}
+    .bar .label{min-width:180px}
+    .bar .track{flex:1;height:14px;border-radius:999px;background:#eee;overflow:hidden;border:1px solid #ddd}
+    .bar .fill{height:100%;background:var(--fp-blue)}
+    .bar.winner .fill{background:linear-gradient(90deg,var(--fp-blue),var(--fp-yellow))}
+    .badge{display:inline-block;padding:.2rem .5rem;border-radius:999px;background:var(--fp-blue);color:#fff;font-size:.75rem;margin-left:6px}
+    .badge.win{background:var(--fp-yellow);color:#000;font-weight:800}
+
+    /* --- Affichage public plein écran --- */
+    #public-display{position:fixed;inset:0;background:radial-gradient(1200px 700px at 50% 0%, #fff8d1 0%, #fff 40%, #fdfdfd 100%);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:9999}
+    #public-display.show{display:flex}
+    #public-winner{font-size: clamp(38px, 7.4vw, 120px);line-height:1.05;text-align:center;color:var(--fp-blue);font-weight:900;text-shadow:0 3px 0 var(--fp-yellow), 0 6px 14px rgba(0,0,0,.15);will-change:transform, text-shadow}
+    #public-theme{margin-top:10px;font-size: clamp(38px, 7.4vw, 120px);text-align:center;color:#1f2937;font-weight:900}
+    #public-sub{margin-top:4px;font-size:clamp(14px,2vw,22px);color:#334155}
+    #public-actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+    #public-close{position:fixed;top:16px;right:16px}
+    .feather{position:fixed;top:-10vh;font-size:clamp(18px,3.5vw,42px);pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.15));opacity:.9}
+    @keyframes fall {0%{transform:translate3d(var(--x,0), -10vh, 0) rotate(0deg); opacity:0}10%{opacity:1}100%{transform:translate3d(var(--xend,0), 110vh, 0) rotate(720deg); opacity:0.95}}
+
+    /* Animation gagnant bleu/jaune (activée par classe .pulse seulement) */
+    @keyframes pulse-winner {
+      0% { transform: scale(1); text-shadow: 0 3px 0 var(--fp-yellow), 0 6px 14px rgba(0,0,0,.15), 0 0 0 rgba(0,51,102,0); }
+      50% { transform: scale(1.035); text-shadow: 0 3px 0 var(--fp-yellow), 0 12px 22px rgba(0,0,0,.18), 0 0 18px rgba(0,51,102,.45); }
+      100% { transform: scale(1); text-shadow: 0 3px 0 var(--fp-yellow), 0 6px 14px rgba(0,0,0,.15), 0 0 0 rgba(0,51,102,0); }
+    }
+    #public-winner.pulse { animation: pulse-winner 1.8s ease-in-out infinite; }
+
+    /* Chips de thèmes */
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px}
+    .chip .x{border:none;background:transparent;cursor:pointer;font-weight:800}
+    .chip.base{opacity:.8}
+
+    /* Chronos (caucus & impro) */
+    .phase{font-weight:800;color:#0f172a}
+    .time-big{font-size:clamp(18px,3.6vw,36px);font-weight:900}
+    .barwrap{position:relative;width:100%;height:20px;background:#e5e7eb;border:1px solid #cbd5e1;border-radius:999px;overflow:hidden}
+    .barfill{position:absolute;left:0;top:0;height:100%;width:100%;background:#16a34a;transition:width .25s linear, background .2s ease}
+    .barfill.orange{background:#f59e0b}
+    .barfill.red{background:#ef4444}
+    .barfill.flash{animation: flash .8s steps(2,end) infinite}
+    @keyframes flash{50%{opacity:.35}}
+    /* Toast */
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;z-index:10000;opacity:0;animation:toastIn .15s ease forwards, toastOut .5s ease 2.2s forwards}
+    @keyframes toastIn{to{opacity:1;bottom:22px}}
+    @keyframes toastOut{to{opacity:0;bottom:16px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">🎭 <span>Interactiv Show</span> <span class="badge">beta</span></div>
+    <div class="pill">Flux : Sélection MC → QR → Lancer le vote → Résultats</div>
+  </header>
+  <main>
+    <div class="tabs">
+      <button id="tab-mc" class="tab">🎚️ Panneau MC</button>
+      <button id="tab-public" class="tab">🗳️ Écran Vote Public</button>
+      <button id="tab-results" class="tab" data-tab="results">📊 Résultats</button>
+    </div>
+
+    <!-- PANEL MC -->
+    <section id="panel-mc" class="panel active">
+      <div class="card" style="width:100%">
+          <h2>1) Choisir 10 catégories (parmi la liste)</h2>
+          <p class="muted">Première étape : coche jusqu’à <span class="counter" id="count">0</span>/10 catégories. Le surplus est bloqué automatiquement.</p>
+          <div class="row" style="margin:8px 0">
+            <input id="add-input" type="text" placeholder="Ajouter une catégorie manuellement…" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:10px"/>
+            <button id="add-button" class="btn secondary">Ajouter</button>
+          </div>
+          <p class="muted" id="cat-meta">Total disponibles : <span id="cat-total">0</span></p>
+          <div id="cat-list" class="list"></div>
+        </div>
+
+      <div class="card" style="margin-top:12px;width:100%">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h2>2) Thèmes d’impro</h2>
+          <button id="theme-bank-toggle" class="btn secondary">Ouvrir banque de thèmes</button>
+        </div>
+        <p class="muted">Base de thèmes enrichie (humoristiques & poétiques) + vos ajouts. Le tirage se fait depuis l’affichage public.</p>
+        <div class="row" id="theme-input-row" style="margin:8px 0">
+          <input id="theme-input" type="text" placeholder="Ajouter un thème…" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:10px"/>
+          <button id="theme-add" class="btn secondary">Ajouter</button>
+        </div>
+        <div id="theme-list" class="chips" style="display:none"></div>
+      </div>
+    </section>
+
+    <!-- PANEL PUBLIC -->
+    <section id="panel-public" class="panel">
+      <!-- Bandeau fixe de contrôle -->
+      <div id="public-controls" style="position:fixed;left:0;right:0;top:0;background:var(--fp-yellow);color:var(--fp-blue);z-index:1000">
+        <div style="max-width:1200px;margin:0 auto;padding:10px 18px">
+          <div style="font-weight:900;letter-spacing:.2px;margin-bottom:8px">Contrôles du vote</div>
+          <div class="row" style="flex-wrap:wrap">
+            <button id="btn-generate" class="btn">Générer le lien</button>
+            <button id="btn-qr" class="btn">Générer le QR Code</button>
+            <button id="btn-start" class="btn">Lancer le vote (10s)</button>
+            <button id="btn-open" class="btn secondary" disabled>Ouvrir l’interface de vote</button>
+            <button id="btn-copy" class="btn secondary" disabled>Copier le lien</button>
+          </div>
+          <!-- lien masqué: supprimé volontairement -->
+        </div>
+      </div>
+
+      <!-- Espace pour ne pas masquer le contenu par le bandeau fixe -->
+      <div style="height:120px"></div>
+
+      <div class="card">
+        <h2>Scannez pour voter</h2>
+        <div id="qr" class="qrbox">
+          <div>
+            <strong>QR en attente</strong>
+            <small>Générez d’abord le lien puis le QR Code depuis le bandeau « Contrôles du vote ».</small>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;gap:10px;align-items:center">
+          <h2>Votez pour la catégorie que vous voulez voir</h2>
+          <div class="row" style="gap:10px;align-items:center">
+            <div class="pill">👥 <span id="connected">0</span> connectés</div>
+            <div class="chrono">⏳ <span id="timer">—</span></div>
+          </div>
+        </div>
+        <p id="status" class="warning" style="margin:0 0 8px 0">En attente du MC… le vote n’est pas encore lancé.</p>
+        <div id="vote-list" class="themes" style="margin-top:10px"></div>
+        <p class="muted">Vous pourrez changer de choix tant que le chrono tourne (10s).</p>
+      </div>
+      <div class="card" id="results-public" style="margin-top:12px;display:none">
+        <h3>Vote verrouillé</h3>
+        <p class="success" id="result-text-public">Merci !</p>
+      </div>
+    </section>
+
+    <!-- PANEL RÉSULTATS (MC) -->
+    <section id="panel-results" class="panel">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h2>Résultats du vote</h2>
+          <div class="row">
+            <button id="btn-public-display" class="btn">Affichage public</button>
+          </div>
+        </div>
+        <div class="row" style="justify-content:space-between;align-items:center;margin-top:6px">
+          <div><span class="muted">Gagnant :</span> <strong id="winner">—</strong> <span id="winner-badge" class="badge win" style="display:none">Gagnant</span></div>
+        </div>
+        <div id="bars" class="bars"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3>⏱️ Caucus & Impro</h3>
+          <div class="row">
+            <label class="muted">Caucus (s)&nbsp;<input id="caucus-seconds" type="number" min="5" max="300" value="30" class="kbd" style="width:84px"></label>
+            <label class="muted">Impro (s)&nbsp;<input id="impro-seconds" type="number" min="30" max="900" value="180" class="kbd" style="width:84px"></label>
+            <span class="muted">— le lancement se fait depuis l’affichage public.</span>
+          </div>
+        </div>
+        <div id="phase-box" class="card" style="background:#fafafa;margin-top:10px">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <div class="phase" id="phase-label">Phase : —</div>
+            <div class="time-big" id="phase-time">—:—</div>
+          </div>
+          <div class="barwrap" style="margin-top:8px"><div id="phase-bar" class="barfill" style="width:0%"></div></div>
+          <p class="muted" style="margin-top:8px">Après le caucus, l'impro démarre automatiquement pour la <b>durée configurée</b>.</p>
+        </div>
+        <p class="muted" style="margin-top:8px">Démo locale : sans serveur, ces résultats reflètent seulement l’appareil courant. Pour des résultats globaux (tout le public), un petit backend est requis.</p>
+      </div>
+    </section>
+
+    <!-- OVERLAY AFFICHAGE PUBLIC -->
+    <div id="public-display" aria-hidden="true">
+      <button id="public-close" class="btn secondary">Quitter</button>
+      <div id="public-winner">—</div>
+      <div id="public-sub">Vainqueur des votes</div>
+      <div id="public-theme" style="display:none">—</div>
+      <div id="public-chrono" style="margin-top:18px;min-width:60%;max-width:900px">
+        <div class="time-big" id="public-time">—:—</div>
+        <div class="barwrap" style="margin-top:8px"><div id="public-bar" class="barfill" style="width:0%"></div></div>
+      </div>
+      <div id="public-actions">
+        <button id="public-caucus" class="btn">⏱️ Lancer le caucus</button>
+        <button id="public-pause" class="btn secondary" disabled>⏸️ Pause</button>
+        <button id="public-draw" class="btn">🎲 Tirage au sort thème</button>
+        <button id="public-reset" class="btn secondary">↺ Réinitialiser le tirage</button>
+        <button id="public-next" class="btn" style="display:none">➡️ Impro suivante</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+  (function(){
+    'use strict';
+    // ===== Données & constantes =====
+    const HUMOR_THEMES = [
+      'Le frigo qui parle', 'Stage chez les clowns', 'Réunion par pantomime', 'Ascenseur en panne d\'idées', 'L\'objet perdu mais pas cherché',
+      'Cours de séduction pour robots', 'Le sosie vraiment nul', 'Le micro qui dit la vérité', 'Garde du corps maladroit', 'Le pire coloc du monde',
+      'Concours du pire jeu de mots', 'Entretien d\'embauche inversé', 'Mariage en 5 minutes', 'La malédiction du fou rire', 'Le GPS de la vie',
+      'Cuisine catastrophique', 'Super-héros en grève', 'Coach de vie à 5€', 'Touriste intergalactique', 'Livraison ultra-tardive'
+    ];
+    const POETIC_THEMES = [
+      'Le vent écrit sur l\'eau', 'Les pas dans la rosée', 'La lettre au clair de lune', 'Deux ombres se rencontrent', 'Le parfum des souvenirs',
+      'Un silence qui répond', 'La saison qui hésite', 'L\'horloge sans aiguilles', 'La pluie qui sait ton nom', 'L\'aube derrière les paupières',
+      'La danse des lucioles', 'Un secret dans la neige', 'Le rire des étoiles', 'La barque des mots', 'Un jardin sans clôture',
+      'La fenêtre qui écoute', 'Le temps en bouquet', 'La grammaire des nuages', 'Les ponts invisibles', 'L\'écho qui se souvient'
+    ];
+
+    const BASE_CATEGORIES = [
+      "Figurant surprise : Un spectateur monte sur scène",
+      "Mots-clés du public : 3 mots à intégrer absolument",
+      "Le moment du DJ : Le DJ crée les bruitages/ambiances",
+      "Sans thème ni caucus",
+      "Carte Joker : Défi surprise à piocher",
+      "Duo choisi : Le public choisit les 2 joueurs",
+      "Dégressive",
+      "Gromelot",
+      "Sur le bout de La .... : les joueurs ne terminent pas leur phrase",
+      "Tout le monde joue : tous les joueurs doivent participer à l'impro",
+      "Echange de genre",
+      "Un peu de poésie : Rimée",
+      "Comédie Musicale",
+      "Western",
+      "Policier",
+      "Soap Opéra",
+      "Jules Vernes",
+      "Sciences Fiction",
+      "Cape et Epée",
+      "Péplum",
+      "Série Tv années 80"
+    ];
+    let ALL_CATEGORIES = [...BASE_CATEGORIES];
+
+    const VOTE_DURATION_S = 10; // vote
+
+    // Thèmes d'impro (tirage)
+    const BASE_THEMES = [
+      'Premier rendez-vous', 'Retrouvailles inattendues', 'Le secret du grenier', 'Une valise mystérieuse', 'Le train ne s\'arrête pas',
+      'Silence radio', 'Double vie', 'Le dernier jour d\'école', 'Coup de fil à minuit', 'Le voisin du dessus',
+      'Un super pouvoir gênant', 'Promesse non tenue', 'Le trésor sous la scène', 'Le repas de famille', 'Nuit au musée',
+      'Erreurs de livraison', 'La lettre jamais envoyée', 'Sur un malentendu', 'Retour de mission', 'Changer de corps',
+      'Le témoin gênant', 'Coup de foudre contrarié', 'Dans l\'ascenseur', 'Souvenirs retrouvés', 'Le dernier client'
+    ];
+
+    let ALL_THEMES = [...BASE_THEMES, ...HUMOR_THEMES, ...POETIC_THEMES];
+    let DRAWN_THEMES = [];
+    try { DRAWN_THEMES = JSON.parse(localStorage.getItem('drawn_themes')||'[]'); } catch(e) { DRAWN_THEMES = []; }
+
+    // ===== Helpers =====
+    const pad = n=> String(n).padStart(2,'0');
+    function encodeItems(items){return encodeURIComponent(items.join("|"));}
+    function decodeItems(str){try{return decodeURIComponent(str).split("|").filter(Boolean);}catch(e){return []}}
+
+    // ===== Onglets =====
+    const tabMc = document.getElementById('tab-mc');
+    const tabPublic = document.getElementById('tab-public');
+    const tabResults = document.getElementById('tab-results');
+    const panelMc = document.getElementById('panel-mc');
+    const panelPublic = document.getElementById('panel-public');
+    const panelResults = document.getElementById('panel-results');
+    const publicOverlay = document.getElementById('public-display');
+    const publicWinner = document.getElementById('public-winner');
+    const publicClose = document.getElementById('public-close');
+    const btnPublicDisplay = document.getElementById('btn-public-display');
+    const publicTheme = document.getElementById('public-theme');
+    const publicDrawBtn = document.getElementById('public-draw');
+    const publicResetBtn = document.getElementById('public-reset');
+    const publicCaucusBtn = document.getElementById('public-caucus');
+    const publicNextBtn = document.getElementById('public-next');
+
+    function setTab(which){
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      if(which==='public'){
+        tabPublic.classList.add('active'); panelPublic.classList.add('active');
+        startPresence();
+      } else if(which==='results'){
+        tabResults.classList.add('active'); panelResults.classList.add('active');
+        stopPresence();
+      } else {
+        tabMc.classList.add('active'); panelMc.classList.add('active');
+        stopPresence();
+      }
+    }
+    tabMc.onclick=()=>setTab('mc');
+    tabPublic.onclick=()=>setTab('public');
+    tabResults.onclick=()=>setTab('results');
+
+    // ===== MC: Sélection catégories =====
+    const catList = document.getElementById('cat-list');
+    const countEl = document.getElementById('count');
+    const addInput = document.getElementById('add-input');
+    const addButton = document.getElementById('add-button');
+
+    function renderCatList(){
+      const previouslyChecked = selected();
+      catList.innerHTML = '';
+      document.getElementById('cat-total').textContent = ALL_CATEGORIES.length;
+      ALL_CATEGORIES.forEach((name)=>{
+        const wrap = document.createElement('div');
+        wrap.className = 'item';
+        const label = document.createElement('label');
+        label.className = 'left';
+        const cb = document.createElement('input');
+        cb.type='checkbox'; cb.value=name;
+        cb.onchange=limitHandler;
+        const span = document.createElement('span');
+        span.textContent = name;
+        label.append(cb,span);
+        wrap.append(label); catList.appendChild(wrap);
+      });
+      [...catList.querySelectorAll('input')].forEach(i=>{ if(previouslyChecked.includes(i.value)) i.checked = true; });
+      limitHandler.call({checked:false});
+    }
+    function selected(){return [...catList.querySelectorAll('input:checked')].map(i=>i.value)}
+    function limitHandler(){
+      let sel = selected();
+      const over = sel.length>10;
+      countEl.textContent = Math.min(sel.length,10);
+      if(over){ this.checked = false; sel = selected(); countEl.textContent = sel.length; }
+      const lock = sel.length>=10;
+      catList.querySelectorAll('input:not(:checked)').forEach(i=> i.disabled = lock);
+    }
+    function clearCategorySelection(){
+      try{
+        catList.querySelectorAll('input').forEach(i=>{ i.checked=false; i.disabled=false; });
+        countEl.textContent='0';
+      }catch(e){ /* ignore */ }
+    }
+
+    function deleteCategory(name){
+      if(!confirm(`Supprimer « ${name} » de la liste ?`)) return;
+      const beforeSel = selected().filter(v=>v!==name);
+      ALL_CATEGORIES = ALL_CATEGORIES.filter(c=>c!==name);
+      const extras = JSON.parse(localStorage.getItem('extra_categories')||'[]');
+      const newExtras = extras.filter(x=>x!==name);
+      localStorage.setItem('extra_categories', JSON.stringify(newExtras));
+      renderCatList();
+      [...catList.querySelectorAll('input')].forEach(i=>{ i.checked = beforeSel.includes(i.value); });
+      limitHandler.call({checked:false});
+    }
+
+    const savedExtra = JSON.parse(localStorage.getItem('extra_categories')||'[]');
+    if(Array.isArray(savedExtra) && savedExtra.length){
+      const norm = s=>s.trim().toLowerCase();
+      const set = new Set(ALL_CATEGORIES.map(norm));
+      savedExtra.forEach(x=>{ if(x && !set.has(norm(x))){ ALL_CATEGORIES.push(x);} });
+    }
+    renderCatList();
+
+    function addCategoryManual(){
+      const val = (addInput.value||'').trim();
+      if(!val){ addInput.focus(); return; }
+      const norm = s=>s.trim().toLowerCase();
+      const exists = new Set(ALL_CATEGORIES.map(norm));
+      if(exists.has(norm(val))){ alert('Cette catégorie existe déjà.'); addInput.select(); return; }
+      ALL_CATEGORIES.push(val);
+      const extras = JSON.parse(localStorage.getItem('extra_categories')||'[]');
+      extras.push(val); localStorage.setItem('extra_categories', JSON.stringify(extras));
+      addInput.value='';
+      renderCatList();
+      limitHandler.call({checked:false});
+    }
+    addButton.onclick = addCategoryManual;
+    addInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ addCategoryManual(); }});
+
+    // ===== MC: Thèmes (tirage) =====
+    const themeInput = document.getElementById('theme-input');
+    const themeAddBtn = document.getElementById('theme-add');
+    const themeInputRow = document.getElementById('theme-input-row');
+    const themeList = document.getElementById('theme-list');
+
+    const savedThemes = JSON.parse(localStorage.getItem('extra_themes')||'[]');
+    if(Array.isArray(savedThemes) && savedThemes.length){
+      const norm = s=>s.trim().toLowerCase();
+      const set = new Set(ALL_THEMES.map(norm));
+      savedThemes.forEach(x=>{ if(x && !set.has(norm(x))){ ALL_THEMES.push(x);} });
+    }
+
+    function syncDrawnWithThemes(){
+      const set = new Set(ALL_THEMES);
+      const next = DRAWN_THEMES.filter(t=>set.has(t));
+      if(next.length !== DRAWN_THEMES.length){
+        DRAWN_THEMES = next;
+        localStorage.setItem('drawn_themes', JSON.stringify(DRAWN_THEMES));
+      }
+      if(publicDrawBtn) publicDrawBtn.disabled = remainingThemes().length===0;
+    }
+
+    function renderThemes(){
+      themeList.innerHTML = '';
+      const BASE_ALL = [...BASE_THEMES, ...HUMOR_THEMES, ...POETIC_THEMES];
+      BASE_ALL.forEach(t=>{
+        const chip = document.createElement('span'); chip.className='chip base'; chip.textContent=t; themeList.appendChild(chip);
+      });
+      const extras = JSON.parse(localStorage.getItem('extra_themes')||'[]');
+      extras.forEach(t=>{
+        const chip = document.createElement('span'); chip.className='chip';
+        const txt = document.createElement('span'); txt.textContent = t;
+        const x = document.createElement('button'); x.className='x'; x.innerHTML='×'; x.title='Supprimer';
+        x.onclick=()=>{ removeTheme(t); };
+        chip.append(txt,x); themeList.appendChild(chip);
+      });
+      syncDrawnWithThemes();
+    }
+    function addTheme(){
+      const val = (themeInput.value||'').trim();
+      if(!val){ themeInput.focus(); return; }
+      const norm = s=>s.trim().toLowerCase();
+      const exists = new Set(ALL_THEMES.map(norm));
+      if(exists.has(norm(val))){ alert('Ce thème existe déjà.'); themeInput.select(); return; }
+      ALL_THEMES.push(val);
+      const extras = JSON.parse(localStorage.getItem('extra_themes')||'[]');
+      extras.push(val); localStorage.setItem('extra_themes', JSON.stringify(extras));
+      themeInput.value='';
+      renderThemes();
+    }
+    function removeTheme(name){
+      const extras = JSON.parse(localStorage.getItem('extra_themes')||'[]');
+      const next = extras.filter(t=>t!==name);
+      localStorage.setItem('extra_themes', JSON.stringify(next));
+      ALL_THEMES = [...BASE_THEMES, ...HUMOR_THEMES, ...POETIC_THEMES, ...next];
+      if (DRAWN_THEMES.includes(name)) {
+        DRAWN_THEMES = DRAWN_THEMES.filter(t=>t!==name);
+        localStorage.setItem('drawn_themes', JSON.stringify(DRAWN_THEMES));
+      }
+      renderThemes();
+    }
+    themeAddBtn.onclick = addTheme;
+    themeInput.addEventListener('keydown', e=>{ if(e.key==='Enter') addTheme(); });
+    renderThemes();
+
+    // Toggle banque de thèmes (affiche/masque la ligne d'ajout + la liste)
+    const themeBankToggle = document.getElementById('theme-bank-toggle');
+    if(themeBankToggle){
+      if(themeInputRow) themeInputRow.style.display = 'none';
+      if(themeList) themeList.style.display = 'none';
+      themeBankToggle.addEventListener('click', ()=>{
+        const isHidden = themeList && themeList.style.display === 'none';
+        if(themeInputRow) themeInputRow.style.display = isHidden ? 'flex' : 'none';
+        if(themeList) themeList.style.display = isHidden ? 'flex' : 'none';
+        themeBankToggle.textContent = isHidden ? 'Fermer banque de thèmes' : 'Ouvrir banque de thèmes';
+      });
+    }
+
+    // ===== Publication & QR =====
+    const btnGenerate = document.getElementById('btn-generate');
+    const btnCopy = document.getElementById('btn-copy');
+    const btnQr = document.getElementById('btn-qr');
+    const btnOpen = document.getElementById('btn-open');
+    const btnStart = document.getElementById('btn-start');
+    const shareUrl = document.getElementById('share-url');
+    const qrBox = document.getElementById('qr');
+    let currentUrl = '';
+
+    function buildPublicUrl(items, start=false){
+      const base = location.origin + location.pathname;
+      return `${base}?mode=public&items=${encodeItems(items)}${start?"&start=1":""}`;
+    }
+
+    function renderQR(url){
+      qrBox.innerHTML = '';
+      const canvas = document.createElement('canvas');
+      canvas.id = 'qrcode';
+      qrBox.appendChild(canvas);
+      const qr = new QRious({element: canvas, value: url, size: 220});
+      const dl = document.createElement('a');
+      dl.textContent = 'Télécharger le QR (.png)';
+      dl.className = 'btn secondary';
+      dl.style.marginTop = '8px';
+      dl.download = 'qr-vote.png';
+      dl.href = qr.toDataURL();
+      qrBox.appendChild(dl);
+    }
+
+    btnGenerate.onclick = ()=>{
+      const items = selected();
+      if(items.length!==10){ alert('Sélectionnez exactement 10 catégories.'); return; }
+      currentUrl = buildPublicUrl(items,false);
+      if(shareUrl) shareUrl.textContent = currentUrl;
+      btnCopy.disabled = false;
+      btnOpen.disabled = false;
+      setTab('public');
+      initPublicFromUrl();
+    }
+
+    btnQr.onclick = ()=>{ if(!currentUrl){ alert('Générez d’abord le lien.'); return; } renderQR(currentUrl); }
+
+    btnStart.onclick = ()=>{
+      const items = selected();
+      if(items.length!==10){ alert('Sélectionnez exactement 10 catégories.'); return; }
+      currentUrl = buildPublicUrl(items,true);
+      if(shareUrl) shareUrl.textContent = currentUrl;
+      renderQR(currentUrl);
+      setTab('public');
+      const newUrl = currentUrl; window.history.replaceState({}, '', newUrl); initPublicFromUrl();
+    }
+
+    btnCopy.onclick = async ()=>{
+      try{
+        const toCopy = shareUrl ? shareUrl.textContent : currentUrl;
+        if(!toCopy){ throw new Error('Aucun lien disponible'); }
+        await navigator.clipboard.writeText(toCopy);
+        btnCopy.textContent='Lien copié ✔';
+        setTimeout(()=>btnCopy.textContent='Copier le lien',1200);
+      }catch(e){alert('Copie impossible, sélectionnez et copiez manuellement.');}
+    }
+
+    btnOpen.onclick = ()=>{ if(!currentUrl){ alert('Générez d’abord le lien.'); return; } window.open(currentUrl,'_blank','noopener'); }
+
+    // ===== Public: vote local (démo) =====
+    const voteList = document.getElementById('vote-list');
+    const timerEl = document.getElementById('timer');
+    const statusEl = document.getElementById('status');
+    const connectedEl = document.getElementById('connected');
+    let countdown, timeLeft = VOTE_DURATION_S, voted = null;
+
+    // ===== Présence (compteur de connexions locales) =====
+    const PRESENCE_KEY = `presence_${location.pathname}`;
+    const CLIENT_ID = `c_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+    const PRESENCE_TTL = 15000; // 15s
+    let presenceTimer = null;
+
+    function readPresence(){ try{ return JSON.parse(localStorage.getItem(PRESENCE_KEY)||'{}'); }catch(e){ return {}; } }
+    function writePresence(map){ localStorage.setItem(PRESENCE_KEY, JSON.stringify(map)); }
+    function prune(map){ const now = Date.now(); for(const [k,v] of Object.entries(map)) if(now - v > PRESENCE_TTL) delete map[k]; return map; }
+    function updatePresence(){ const map = prune(readPresence()); map[CLIENT_ID] = Date.now(); writePresence(map); renderPresenceCount(map); }
+    function removeSelf(){ const map = readPresence(); if(map[CLIENT_ID]){ delete map[CLIENT_ID]; writePresence(map); } }
+    function renderPresenceCount(map){ const m = map || prune(readPresence()); connectedEl && (connectedEl.textContent = String(Object.keys(m).length)); }
+    function startPresence(){ if(presenceTimer) return; updatePresence(); presenceTimer = setInterval(updatePresence, 5000); }
+    function stopPresence(){ if(presenceTimer){ clearInterval(presenceTimer); presenceTimer=null; } removeSelf(); }
+    window.addEventListener('storage', (e)=>{ if(e.key===PRESENCE_KEY){ renderPresenceCount(); } });
+    window.addEventListener('beforeunload', removeSelf);
+
+    function initPublicFromUrl(){
+      const params = new URLSearchParams(location.search);
+      const mode = params.get('mode');
+      const itemsStr = params.get('items');
+      const start = params.get('start') === '1';
+      const items = itemsStr ? decodeItems(itemsStr) : [];
+      if(mode==='public') setTab('public'); else stopPresence();
+      renderPublicList(items.length?items:ALL_CATEGORIES.slice(0,10), start);
+      if(countdown) clearInterval(countdown);
+      if(start){
+        statusEl.textContent = 'Vote en cours…';
+        statusEl.className = 'success';
+        timeLeft = VOTE_DURATION_S; timerEl.textContent = timeLeft;
+        countdown = setInterval(()=>{ timeLeft--; timerEl.textContent = timeLeft; if(timeLeft<=0){clearInterval(countdown); lockVote(items);} },1000);
+      } else {
+        statusEl.textContent = 'En attente du MC… le vote n’est pas encore lancé.';
+        statusEl.className = 'warning';
+        timerEl.textContent = '—';
+        voteList.querySelectorAll('.theme').forEach(t=>t.setAttribute('aria-disabled','true'));
+      }
+    }
+
+    function renderPublicList(items, enabled){
+      voteList.innerHTML='';
+      items.forEach((name,idx)=>{
+        const div = document.createElement('div');
+        div.className='theme'; div.textContent = `${idx+1}. ${name}`;
+        if(!enabled){ div.setAttribute('aria-disabled','true'); }
+        div.onclick = ()=>{
+          if(div.getAttribute('aria-disabled')==='true') return;
+          if(timeLeft<=0) return;
+          voteList.querySelectorAll('.theme').forEach(t=>t.classList.remove('selected'));
+          div.classList.add('selected');
+          voted = name;
+        };
+        voteList.appendChild(div);
+      });
+    }
+
+    // ===== Résultats (local) =====
+    const winnerEl = document.getElementById('winner');
+    const winnerBadge = document.getElementById('winner-badge');
+    const bars = document.getElementById('bars');
+
+    function lockVote(items){
+      voteList.querySelectorAll('.theme').forEach(t=>t.setAttribute('aria-disabled','true'));
+      document.getElementById('results-public').style.display='block';
+      document.getElementById('result-text-public').textContent = voted ? `Votre vote : ${voted}` : 'Aucun vote enregistré sur cet appareil.';
+      const counts = new Map(items.map(i=>[i,0]));
+      if(voted && counts.has(voted)) counts.set(voted, 1);
+      showResults(counts);
+      setTab('results');
+    }
+
+    function showResults(counts){
+      const entries = [...counts.entries()];
+      const max = Math.max(1, ...entries.map(e=>e[1]));
+      const [winKey] = entries.reduce((a,b)=> b[1]>a[1]?b:a, entries[0]||['—',0]);
+      if(winnerEl) winnerEl.textContent = winKey || '—';
+      if(publicWinner){
+        publicWinner.textContent = winKey || '—';
+        publicWinner.classList.remove('pulse');
+        if(winKey && winKey !== '—') publicWinner.classList.add('pulse');
+      }
+      if(winnerBadge) winnerBadge.style.display = entries.length? 'inline-block':'none';
+      if(bars){
+        bars.innerHTML = '';
+        entries.forEach(([k,v])=>{
+          const row = document.createElement('div'); row.className = 'bar'+(k===winKey?' winner':'');
+          const label = document.createElement('div'); label.className='label'; label.textContent = `${k}`;
+          const track = document.createElement('div'); track.className='track';
+          const fill = document.createElement('div'); fill.className='fill'; fill.style.width = `${(v/max)*100}%`;
+          track.appendChild(fill); row.append(label, track);
+          bars.appendChild(row);
+        });
+      }
+    }
+
+    // ===== Affichage public (overlay) =====
+    function launchPublicDisplay(){
+      document.querySelectorAll('.feather').forEach(f=>f.remove());
+      publicOverlay.classList.add('show');
+      publicOverlay.setAttribute('aria-hidden','false');
+      if(publicWinner) publicWinner.classList.remove('pulse');
+      const el = publicOverlay; if(el.requestFullscreen){ el.requestFullscreen().catch(()=>{}); }
+      const N = 24;
+      for(let i=0;i<N;i++){
+        const f = document.createElement('div'); f.className = 'feather'; f.textContent = '🪶';
+        const left = Math.random()*100; const drift = (Math.random()*20-10);
+        const delay = (Math.random()*3).toFixed(2); const duration = (5+Math.random()*5).toFixed(2);
+        f.style.left = left+'vw'; f.style.animation = `fall ${duration}s linear ${delay}s forwards`;
+        f.style.setProperty('--x','0vw'); f.style.setProperty('--xend', `${drift}vw`);
+        document.body.appendChild(f);
+      }
+    }
+    function closePublicDisplay(){
+      publicOverlay.classList.remove('show');
+      publicOverlay.setAttribute('aria-hidden','true');
+      if(publicWinner) publicWinner.classList.remove('pulse');
+      document.exitFullscreen && document.fullscreenElement && document.exitFullscreen();
+      document.querySelectorAll('.feather').forEach(f=>f.remove());
+    }
+
+    // Tirage au sort d'un thème (sans répétitions)
+    function remainingThemes(){ const setDrawn = new Set(DRAWN_THEMES); return ALL_THEMES.filter(t=>!setDrawn.has(t)); }
+    function drawTheme(){
+      const rem = remainingThemes();
+      if(rem.length===0){ if(publicDrawBtn) publicDrawBtn.disabled = true; return; }
+      const pick = rem[Math.floor(Math.random()*rem.length)];
+      publicTheme.textContent = `Thème : ${pick}`; publicTheme.style.display = 'block';
+      DRAWN_THEMES.push(pick); localStorage.setItem('drawn_themes', JSON.stringify(DRAWN_THEMES));
+      publicTheme.animate([{transform:'scale(1)'},{transform:'scale(1.06)'},{transform:'scale(1)'}],{duration:420});
+      if(remainingThemes().length===0 && publicDrawBtn) publicDrawBtn.disabled = true;
+    }
+    function resetThemeDraw(){ DRAWN_THEMES = []; localStorage.removeItem('drawn_themes'); publicTheme.textContent = '—'; publicTheme.style.display = 'none'; if(publicDrawBtn) publicDrawBtn.disabled = false; }
+
+    btnPublicDisplay && (btnPublicDisplay.onclick = launchPublicDisplay);
+    publicClose && (publicClose.onclick = closePublicDisplay);
+    publicDrawBtn && (publicDrawBtn.onclick = drawTheme);
+    publicResetBtn && (publicResetBtn.onclick = resetThemeDraw);
+    publicNextBtn && (publicNextBtn.onclick = () => { handleNextImpro(); });
+    publicOverlay && publicOverlay.addEventListener('click', (e)=>{ if(e.target===publicOverlay) closePublicDisplay(); });
+
+    // Petit toast de confirmation
+    function showToast(msg){
+      try{ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2700);}catch(e){ /* fallback */ alert(msg); }
+    }
+
+    // ===== Chronos Caucus & Impro =====
+    const caucusInputEl = document.getElementById('caucus-seconds');
+    const improInputEl = document.getElementById('impro-seconds');
+    const phaseLabelEl = document.getElementById('phase-label');
+    const phaseTimeEl = document.getElementById('phase-time');
+    const phaseBarEl = document.getElementById('phase-bar');
+    const publicTimeEl = document.getElementById('public-time');
+    const publicBarEl = document.getElementById('public-bar');
+    const publicPauseBtn = document.getElementById('public-pause');
+
+    let phaseInterval = null;
+    let phaseRunning = false;
+    let phasePaused = false;
+    let phaseLabel = '';
+    let phaseTotal = 0;
+    let phaseRemaining = 0;
+    let phaseShowColors = false;
+    let phaseNext = null;
+
+    const pad2 = n=> String(n).padStart(2,'0');
+    function fmt(t){ const m = Math.floor(t/60), s = t%60; return `${m}:${pad2(s)}`; }
+    function setBar(barEl, t, total){ const pct = Math.max(0, Math.min(100, 100*(t/total))); barEl.style.width = pct+'%'; }
+    function setColor(barEl, t){
+      barEl.classList.remove('orange','red','flash');
+      if(t <= 30){ barEl.classList.add('red','flash'); }
+      else if(t <= 60){ barEl.classList.add('red'); }
+      else if(t <= 120){ barEl.classList.add('orange'); }
+    }
+    function chickenCluck(){
+      try{
+        const actx = new (window.AudioContext||window.webkitAudioContext)();
+        const now = actx.currentTime;
+        function cluck(at){
+          const o = actx.createOscillator();
+          const g = actx.createGain();
+          o.type='square'; o.frequency.setValueAtTime(600, at); o.frequency.exponentialRampToValueAtTime(180, at+0.18);
+          g.gain.setValueAtTime(0.001, at); g.gain.exponentialRampToValueAtTime(0.4, at+0.02); g.gain.exponentialRampToValueAtTime(0.0001, at+0.22);
+          o.connect(g).connect(actx.destination); o.start(at); o.stop(at+0.24);
+        }
+        cluck(now); cluck(now+0.28);
+      }catch(e){ /* ignore */ }
+    }
+
+    function updatePhaseUI(){
+      const t = phaseRemaining, total = phaseTotal;
+      phaseLabelEl.textContent = `Phase : ${phaseLabel}`;
+      phaseTimeEl.textContent = fmt(t);
+      publicTimeEl.textContent = fmt(t);
+      setBar(phaseBarEl, t, total); setBar(publicBarEl, t, total);
+      if(phaseShowColors) { setColor(phaseBarEl, t); setColor(publicBarEl, t); } else { phaseBarEl.classList.remove('orange','red','flash'); publicBarEl.classList.remove('orange','red','flash'); }
+      if(publicPauseBtn){ publicPauseBtn.disabled = !phaseRunning; publicPauseBtn.textContent = phasePaused ? '▶️ Reprendre' : '⏸️ Pause'; }
+    }
+    function tick(){
+      if(phasePaused) return;
+      phaseRemaining--;
+      if(phaseRemaining < 0){
+        clearInterval(phaseInterval); phaseInterval=null; phaseRunning=false; updatePhaseUI(); chickenCluck(); if(typeof phaseNext==='function') phaseNext(); return;
+      }
+      updatePhaseUI();
+    }
+    function runPhase({label, total, showColors, next}){
+      clearInterval(phaseInterval); phaseInterval=null;
+      phaseRunning = true; phasePaused = false; phaseLabel = label; phaseTotal = total; phaseRemaining = total; phaseShowColors = !!showColors; phaseNext = next||null;
+      updatePhaseUI();
+      phaseInterval = setInterval(tick, 1000);
+    }
+    function pausePhase(){ if(!phaseRunning) return; phasePaused = !phasePaused; updatePhaseUI(); }
+    function resetPhaseUI(){ clearInterval(phaseInterval); phaseInterval=null; phaseRunning=false; phasePaused=false; phaseLabel='—'; phaseTotal=0; phaseRemaining=0; phaseShowColors=false; updatePhaseUI(); }
+    function onImproEnded(){ const btn = document.getElementById('public-next'); if(btn) btn.style.display='inline-block'; }
+    function handleNextImpro(){
+      closePublicDisplay();
+      resetPhaseUI();
+      resetThemeDraw();
+      if(publicWinner) publicWinner.classList.remove('pulse');
+      currentUrl = '';
+      if (btnCopy) { btnCopy.disabled = true; }
+      if (btnOpen) { btnOpen.disabled = true; }
+      if (qrBox) {
+        qrBox.innerHTML = '<div><strong>QR en attente</strong><small>Générez d’abord le lien puis le QR Code depuis le bandeau « Contrôles du vote ».</small></div>';
+      }
+      clearCategorySelection();
+      voteList.innerHTML='';
+      statusEl.textContent='En attente du MC… le vote n’est pas encore lancé.'; statusEl.className='warning';
+      timerEl.textContent='—';
+      const btn = document.getElementById('public-next'); if(btn) btn.style.display='none';
+      setTab('mc');
+      showToast('Nouvelle impro prête !');
+    }
+
+    function startCaucus(){
+      let s = Math.max(5, Math.min(300, parseInt(caucusInputEl.value||'30',10)));
+      runPhase({label:'Caucus', total:s, showColors:false, next:startImpro});
+      if(!publicOverlay.classList.contains('show')) launchPublicDisplay();
+    }
+    function startImpro(){
+      let s = Math.max(30, Math.min(900, parseInt(improInputEl && improInputEl.value || '180',10)));
+      const lbl = `Impro (${Math.floor(s/60)}:${pad2(s%60)})`;
+      runPhase({label:lbl, total:s, showColors:true, next:onImproEnded});
+    }
+
+    publicCaucusBtn && (publicCaucusBtn.onclick = startCaucus);
+    publicPauseBtn && (publicPauseBtn.onclick = pausePhase);
+
+    // ===== Self-tests rapides (activer via ?selftest=1) =====
+    (function(){
+      const params = new URLSearchParams(location.search);
+      const run = params.get('selftest') === '1';
+      if(!run){ initPublicFromUrl(); return; }
+      const logs = []; const assert=(c,m)=>logs.push((c?'✅ ':'❌ ')+m);
+      try{
+        assert(VOTE_DURATION_S===10, 'Durée de vote = 10s');
+        renderQR(location.href); assert(!!document.getElementById('qrcode'),'QR rendu');
+        setTab('public'); updatePresence(); const n = Number((document.getElementById('connected').textContent)||'0'); assert(n>=1,'Compteur connectés ≥1'); setTab('mc');
+        assert(Array.isArray(HUMOR_THEMES) && Array.isArray(POETIC_THEMES),'Tableaux de thèmes init');
+        assert(ALL_THEMES.length >= (25+20+20), 'Pool thèmes ≥ 65 (base+humour+poésie)');
+        resetThemeDraw(); const len0 = remainingThemes().length; drawTheme(); const len1 = remainingThemes().length; assert(len1===len0-1,'Tirage consomme 1 thème');
+        document.getElementById('public-caucus').click();
+        assert(document.getElementById('phase-label').textContent.includes('Caucus'),'Clic public -> démarre le caucus');
+        const imp = document.getElementById('impro-seconds'); imp.value = 75; // 1:15
+        startImpro();
+        assert(document.getElementById('phase-label').textContent.includes('Impro (1:15)'),'Impro utilise la durée configurée');
+        document.getElementById('public-pause').click();
+        assert(document.getElementById('public-pause').textContent.includes('Reprendre'),'Pause bascule bien en Reprendre');
+        resetThemeDraw();
+        assert(getComputedStyle(document.getElementById('public-theme')).display==='none','Thème caché avant tirage');
+        drawTheme();
+        const themeEl = document.getElementById('public-theme');
+        assert(getComputedStyle(themeEl).display!=='none','Thème visible après tirage');
+        assert(/^Thème\s*:\s*/.test(themeEl.textContent),'Préfixe "Thème :" présent');
+        launchPublicDisplay();
+        const above = themeEl.getBoundingClientRect().top < document.getElementById('public-chrono').getBoundingClientRect().top;
+        assert(above,'Thème au-dessus de la bande temps');
+        assert(!document.getElementById('share-url'),'Lien masqué (pas d\'élément #share-url)');
+        const toggleBtn = document.getElementById('theme-bank-toggle');
+        const listEl = document.getElementById('theme-list');
+        const inputRowEl = document.getElementById('theme-input-row');
+        assert(getComputedStyle(listEl).display==='none' && getComputedStyle(inputRowEl).display==='none','Banque fermée par défaut');
+        toggleBtn.click();
+        assert(getComputedStyle(listEl).display!=='none' && getComputedStyle(inputRowEl).display!=='none','Banque ouverte après clic');
+        assert(typeof window.phaseInterval === 'undefined','phaseInterval non global (pas de redéclaration)');
+      }catch(e){ assert(false, 'Exception: '+(e&&e.message?e.message:e)); }
+      const box=document.createElement('div'); box.style.position='fixed'; box.style.right='10px'; box.style.bottom='10px'; box.style.background='#fff'; box.style.border='1px solid #ddd'; box.style.borderRadius='10px'; box.style.padding='8px 10px'; box.style.fontSize='.9rem'; box.style.boxShadow='0 6px 20px rgba(0,0,0,.08)'; box.innerHTML=`<strong>Self-tests</strong><br>${logs.join('<br>')}`; document.body.appendChild(box);
+      initPublicFromUrl();
+    })();
+  })();
+  </script>
+</body>
+</html>
